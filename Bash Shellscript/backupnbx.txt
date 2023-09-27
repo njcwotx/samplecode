@@ -1,0 +1,144 @@
+#!/bin/bash
+
+##
+# this scipts job is to take a list of phone systems across the WAN and backup their configuration, there is a bit of testing
+# that takes place for debugging and working around trouble WAN links.
+
+#declare variables
+#the line pulled from nbxlist.wri
+declare LINE
+#the dns name of the nbx
+declare SITE
+#the supplied ip address, not from dns
+declare NBXIP
+# a value holder for the date script started and a field separator
+declare DATE
+declare DATE2
+declare DATE3
+declare FS
+
+declare FILESIZE
+
+#set the DATE value to time script starts
+DATE=$(date '+%m-%d-%Y')
+DATE2=$(date '+%m-%d-%Y-%H%M')
+DATE3=$(date '+%m%d%Y')
+FILESIZE=0
+
+mail -s "NBX Backup starting $DATE2" myemail@mydomain.com < /mnt/nbxbackup/bin/startup.msg
+# FS is the separator for the cut command
+FS=":"
+
+#set a divider in the log with the date of backup
+echo "___ SUCCESSFUL NBXBACKUPs $DATE ______________________" > /mnt/nbxbackup/logs/success.log
+echo -e "\n_____ FAILED NBXBACKUPs $DATE ________________________" > /mnt/nbxbackup/logs/fail.log
+
+
+#open the list of nbx's for backup, .wri chosen so teleco admin could use wordpad to edit file and save in right format
+exec 3< /mnt/nbxbackup/nbxlist.wri
+
+#begin main loop to hit each site for backup, reads one line from feal each pass.
+while read LINE <&3 ; do
+
+    # divide each line tino their respective variables
+    SITE=$(echo $LINE|cut -d$FS -f1)
+    NBXIP=$(echo $LINE|cut -d$FS -f2)
+    # sets name of the license file for backup
+    LICFILE="$SITE-3ComNBXLic-$DATE3.tar"
+    #output for manually running this script.
+    printf "Beginning backup of site %s at the ip address %s\n" "$SITE" "$NBXIP"
+    
+    #test teleco web page to see if it is up, this will speed up backup, otherwise the perl script runs too long.
+    if wget --connect-timeout=10 --tries=2 --delete-after -nd http://"$SITE" 2> /dev/null 1> /dev/null 
+       then
+          # the wget passed so a backup will begin, using the perl script from 3com and then it will log the exit code.
+	  printf "site is up, commencing backup\n"
+	  #vendor provided perl script that backs up the phone system
+	  /mnt/nbxbackup/bin/nbx-perl.pl --NBX=$NBXIP --password='THEPASSWORD' --prepend=$SITE'-' --path=/mnt/nbxbackup/tarfiles/ --useDate=TRUE
+          #echo "exit code $? for $SITE at $NBXIP" >> /mnt/nbxbackup/logs/success.log
+		
+	  # test filesize for password errors since we get zero byte files if password is not set correctly 
+
+		FILESIZE=`stat -c %s /mnt/nbxbackup/tarfiles/$SITE-$DATE3.tar`
+		if [ "$?" -gt "0" ]
+		then
+			echo "error cannot stat $SITE-$DATE3.tar file does not exist" >> /mnt/nbxbackup/logs/fail.log
+		else
+			if [ -s /mnt/nbxbackup/tarfiles/$SITE-$DATE3.tar ]
+			then
+				echo "$NBXIP $SITE's  backup filesize is $FILESIZE" >> /mnt/nbxbackup/logs/success.log
+			else
+				echo "error $NBXIP $SITE's backup filesize is ZERO better check the password" >> /mnt/nbxbackup/logs/fail.log
+			fi
+		fi
+		FILESIZE=0
+       	# now use ftp to backup the license file
+	# these were added for manual debugging
+	echo $NBXIP
+	echo $LICFILE
+
+
+	#orginially the ftp code was here, but I tried an external command because I had problems with time outs killing script.
+	# I believe part of the problem with cron is in here.
+	/mnt/nbxbackup/bin/ftpauto.cmd $NBXIP $LICFILE
+
+#========   contents of ftpauto.cmd =============#
+#	ftp -v -n  $1 << cmd
+#	user "ftpusername" "ftppassword"
+#	cd /htfs0/license
+#	lcd /mnt/nbxbackup/licenses
+#	binary
+#	get 3ComNBXLic.tar $2 
+#	quit
+#	cmd
+#=========   end contents of ftpauto.cmd========#
+
+
+
+
+
+	#test to see if license file exists and make log entry
+	FILESIZE=`stat -c %s /mnt/nbxbackup/licenses/$SITE-3ComNBXLic-$DATE3.tar`
+	if [ "$?" -gt "0" ]
+		then
+			echo "error cannot stat $SITE-3ComNBXLic-$DATE3.tar file does not exist" >> /mnt/nbxbackup/logs/fail.log
+		else
+
+			if [ -s /mnt/nbxbackup/licenses/$SITE-3ComNBXLic-$DATE3.tar ]
+			then
+				echo "$SITE's license filesize is $FILESIZE" >> /mnt/nbxbackup/logs/success.log
+			else
+				echo "$SITE's license filesize is ZERO" >> /mnt/nbxbackup/logs/fail.log
+			fi
+	fi
+
+
+	FILESIZE=0	
+
+
+       else
+          # the wget failed so backup will log the failure and troubleshooting info about connection.
+	  printf "site is down, skipping backup\n"
+	  echo "====== $SITE $NBXIP ======" >> /mnt/nbxbackup/logs/fail.log
+	  echo $DATE $SITE $NBXIP >> /mnt/nbxbackup/logs/fail.log
+	  traceroute -m 8 $NBXIP >> /mnt/nbxbackup/logs/fail.log
+	  ping -c 2 $SITE >> /mnt/nbxbackup/logs/fail.log
+	  echo " " >> /mnt/nbxbackup/logs/fail.log
+    fi
+
+done
+
+#future notification, cleanup, can moving of files if necessary
+
+# Clean up old files in folder to prevent overrunning disk space, folder is backed up to tape for long term storage.
+find /mnt/nbxbackup/tarfiles -mtime +30 -type f -exec rm {} \;
+find /mnt/nbxbackup/logs -mtime +60 -type f -exec rm {} \;
+find /mnt/nbxbackup/licenses -mtime +30 -type f -exec rm {} \;
+
+
+# create the combined logs for historical.
+cat /mnt/nbxbackup/logs/success.log /mnt/nbxbackup/logs/fail.log > /mnt/nbxbackup/logs/combined-$DATE2.log
+mail -s "NBX Backups $DATE2" myemail@mydomain.com < /mnt/nbxbackup/logs/combined-$DATE2.log
+mail -s "NBX Backups $DATE2" telcoguy@mydomain.com < /mnt/nbxbackup/logs/combined-$DATE2.log
+
+exit 0

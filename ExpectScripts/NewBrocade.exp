@@ -1,0 +1,78 @@
+#!/usr/bin/expect -f
+# script to login and show snmpsettings on a brocade in brocade.list
+#
+#
+#
+# Set Behavior
+set workingdir /home/nathan/ExpectSNMP
+
+
+# get credentials
+puts stdout "Enter username"
+gets stdin userid
+system stty -echo
+puts  stdout "Enter login password"
+gets stdin bcpassword
+puts stdout "Enter New Password Carefully"
+gets stdin newbcpassword
+system stty echo
+
+set BROC [open "$workingdir/brocade.list" r]
+set LOG [open "$workingdir/brocade_SETUP.log" w]
+set NOPROMPT 1
+set ITERATION 0
+
+while {[gets $BROC brocade] != -1 } {
+	set timeout 10
+	spawn ssh $userid@$brocade
+
+	expect	{
+		{(yes/no)?}   { send "yes\r"
+                             	expect 	{
+                                       	{password} { send $bcpassword\r }
+					}
+                                    }
+			      
+		{password} {send $bcpassword\r}
+				 
+
+		{timeout} { puts $LOG "$brocade - login FAILED 0"
+			  exit
+			}
+		}
+	expect	{
+		{key to proceed.}	{ 
+				send "\r"
+				expect 	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect 	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect 	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect 	{
+					{password:} { send $newbcpassword\r }
+					}
+				expect	{
+					{password:} { send $newbcpassword\r }
+					}
+				}
+		{timeout} { puts $LOG "$brocade - No Proceed." ; close ; wait ; continue }
+		}
+	puts $LOG "$brocade - passwords set"
+	expect {*>}
+	send "exit\r"
+	}
+puts $LOG "All Passwords Set"
+close $BROC; close $LOG

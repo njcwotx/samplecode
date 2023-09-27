@@ -1,0 +1,75 @@
+#!/usr/bin/expect -f
+# script to login and show snmpsettings on a brocade in brocade.list
+#
+#
+#
+# Set Behavior
+set workingdir /home/nathan/ExpectSNMP
+
+
+# get credentials
+puts stdout "Enter username"
+gets stdin userid
+system stty -echo
+puts  stdout "Enter login password"
+gets stdin bcpassword
+system stty echo
+
+set BROC [open "$workingdir/brocade.list" r]
+set LOG [open "$workingdir/brocade_getSNMP.log" w]
+
+
+while {[gets $BROC brocade] != -1 } {
+	set timeout 10
+	spawn ssh $userid@$brocade
+
+	expect	{
+		{(yes/no)?}   { send "yes\r"
+                             expect {
+                                       {Password} { send "$bcpasswd\n" }
+                                    }
+			      }
+		{password} {send "$bcpassword\n"}
+				 
+
+		timeout { puts $LOG "$brocade - login FAILED 0"
+			  close; wait; continue
+			}
+		}
+	expect	{
+		{*>}	{ puts $LOG "$brocade - login successful"}
+
+		timeout { puts $LOG "$brocade - login FAILED 1"
+			  close; wait; continue
+			}
+
+		}
+	send "snmpconfig --show snmpv1\r"
+	expect {*>}
+	puts $LOG $expect_out(buffer)
+
+	send "snmpconfig --show snmpv3\r"
+	expect {*>}
+	puts $LOG $expect_out(buffer)
+
+	send "snmpconfig --show accessControl\r"	
+	expect {*>}
+	puts $LOG $expect_out(buffer)
+
+	send "senmpconfig --show mibCapability\r"
+	expect {*>}
+	puts $LOG $expect_out(buffer)
+
+	send "snmpconfig --show secLevel\r"
+	expect {*>}
+	puts $LOG $expect_out(buffer)
+	
+	
+	send "snmpconfig --show systemGroup\r"
+	expect {*>}
+	puts $LOG $expect_out(buffer)
+	
+
+	send "exit\r"; close; wait
+	}
+close $BROC; close $LOG
