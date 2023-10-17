@@ -105,22 +105,22 @@ while running:
 
     # if keystroke is pressed check right or left or fire
     if event.type == pygame.KEYDOWN:
+        print(event.key)
         if event.key == pygame.K_LEFT:
             playerX_change = -5
         if event.key == pygame.K_RIGHT:
             playerX_change = 5
-        if event.key == pygame.K_SPACE:
+        if event.key == pygame.K_LSHIFT:
             if bullet_state == "ready":
                 bulletSound = mixer.Sound("laser.wav")
                 bulletSound.play()
-
                 #Get the current state of the spaceship
                 bulletX = playerX
                 fire_bullet(bulletX, bulletY)
     
     if event.type == pygame.KEYUP:
             if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
-                    playerX_change == 0
+                playerX_change == 0
 
     # 5 = 5 + -0.1 -> 5 = 5 - 0.1
     # 5 = 5 + 0.1
@@ -142,7 +142,7 @@ while running:
         
         enemyX[i] += enemyX_change[i]
         if enemyX[i] <= 0:
-            enemyX_change[i] = 4
+            enemyX_change[i] = 4       
             enemyY[i] += enemyY_change[i]
         elif enemyX[i] >= 736:
             enemyX_change[i] = -4
@@ -157,7 +157,8 @@ while running:
             score_value += 1
             enemyX[i] = random.randint(0,736)
             enemyY[i] = random.randint(50,150)
-            enemy(enemyX[i], enemyY[i], i)
+        
+        enemy(enemyX[i], enemyY[i], i)
 
         #BulletMovement
         if bulletY <= 0:
