@@ -19,7 +19,7 @@ mixer.music.play(-1)
 #Caption and Icon
 pygame.display.set_caption("Space Invader")
 icon=pygame.image.load('ufo.png')
-pygame.dispaly.set_icon(icon)
+pygame.display.set_icon(icon)
 
 #Player
 playerImg = pygame.image.load('player.png')
@@ -119,7 +119,7 @@ while running:
                 fire_bullet(bulletX, bulletY)
     
     if event.type == pygame.KEYUP:
-            if event.key == pygame.K_Left or event.key == pygame.K_RIGHT:
+            if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
                     playerX_change == 0
 
     # 5 = 5 + -0.1 -> 5 = 5 - 0.1
@@ -150,13 +150,13 @@ while running:
 
         collision = isCollision(enemyX[i], enemyY[i], bulletX, bulletY)
         if collision:
-            explosionSound = mixer.Sound("explostion.wav")
+            explosionSound = mixer.Sound("explosion.wav")
             explosionSound.play()
             bulletY = 380
             bullet_state = "ready"
             score_value += 1
-            enemyX[i] = random.randomint(0,736)
-            enemyY[i] = random.randomint(50,150)
+            enemyX[i] = random.randint(0,736)
+            enemyY[i] = random.randint(50,150)
             enemy(enemyX[i], enemyY[i], i)
 
         #BulletMovement
